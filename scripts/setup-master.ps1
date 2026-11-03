@@ -135,6 +135,7 @@ try {
     $build = Get-Content (Join-Path $InstallDir 'build.json') -Raw -ErrorAction SilentlyContinue | ConvertFrom-Json
     $state = [ordered]@{ port = $port; url = $lanUrl; localUrl = $localUrl; version = $(if ($build) { $build.app } else { '' }) }
     Write-Utf8NoBom $installJson ($state | ConvertTo-Json)
+    Write-Utf8NoBom (Join-Path $data 'local-url.txt') $localUrl  # dibaca halaman akhir installer (tautan aktivasi)
 
     Write-SetupLog $log "Selesai. Buka $localUrl/aktivasi untuk aktivasi lisensi."
     exit 0

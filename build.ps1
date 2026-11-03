@@ -88,4 +88,25 @@ if ($SkipInno) {
     Write-Host "Stage siap di $stage (Inno dilewati)."
     return
 }
-throw 'Kompilasi installer belum ada (Task 6).'
+
+Write-Step "Kompilasi Setup.exe (Inno Setup)"
+$iscc = @("$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe", "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe", "$env:ProgramFiles\Inno Setup 6\ISCC.exe") |
+    Where-Object { Test-Path $_ } | Select-Object -First 1
+if (-not $iscc) { throw 'Inno Setup 6 tidak ditemukan (winget install JRSoftware.InnoSetup).' }
+$dist = Join-Path $PSScriptRoot 'dist'
+New-Item -ItemType Directory -Force $dist | Out-Null
+Invoke-Native 'ISCC' { & $iscc /Q "/DAppVersion=$($v.AppVersion)" "/DStageDir=$stage" (Join-Path $PSScriptRoot 'installer\VerifikasiFaktur.iss') }
+
+$setup = Join-Path $dist "Verifikasi-Faktur-Setup-$($v.AppVersion).exe"
+$notes = @(
+    "Verifikasi Faktur $($v.AppVersion) - catatan rilis",
+    "Tanggal build : $(Get-Date -Format 'yyyy-MM-dd HH:mm')",
+    "App           : $($v.AppVersion) (commit $appCommit, ref $AppRef)",
+    "PHP           : $phpVersion",
+    "Apache        : $($v.Apache.Version)",
+    "VC++ runtime  : $($v.VcRedist.Version)",
+    "Setup.exe     : $(Split-Path $setup -Leaf)",
+    "SHA-256       : $((Get-FileHash $setup -Algorithm SHA256).Hash)"
+)
+Set-Content (Join-Path $dist 'RELEASE-NOTES.txt') $notes -Encoding UTF8
+Write-Step "Selesai: $setup ($([math]::Round((Get-Item $setup).Length / 1MB)) MB)"
