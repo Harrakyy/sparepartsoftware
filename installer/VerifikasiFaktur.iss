@@ -180,7 +180,9 @@ end;
 function ShouldSkipPage(PageID: Integer): Boolean;
 begin
   Result := False;
-  if (PageID = AdminPage.ID) or (PageID = RestorePage.ID) then
+  if PageID = AdminPage.ID then
+    Result := (not IsMaster) or IsUpdate or HasParam('SKIPADMIN')
+  else if PageID = RestorePage.ID then
     Result := (not IsMaster) or IsUpdate
   else if PageID = ScanPage.ID then
     Result := IsMaster;
@@ -208,11 +210,11 @@ function NextButtonClick(CurPageID: Integer): Boolean;
 begin
   Result := True;
   if (CurPageID = AdminPage.ID) and (Pos('@', AdminPage.Values[1]) = 0) then begin
-    MsgBox('Isi email superadmin yang valid.', mbError, MB_OK);
+    SuppressibleMsgBox('Isi email superadmin yang valid (atau pasang senyap dengan /SKIPADMIN=1).', mbError, MB_OK, IDOK);
     Result := False;
   end else if CurPageID = ScanPage.ID then begin
     if (Trim(ScanPage.Values[0]) = '') or (Trim(ScanPage.Values[1]) = '') then begin
-      MsgBox('Isi alamat komputer master dan kode pemasangan.', mbError, MB_OK);
+      SuppressibleMsgBox('Isi alamat komputer master dan kode pemasangan (senyap: /SERVER= dan /CODE=).', mbError, MB_OK, IDOK);
       Result := False;
     end else
       Result := CheckScanConnection;

@@ -66,8 +66,23 @@ function Set-RestrictedAcl {
 
     $grants = @('*S-1-5-32-544:(OI)(CI)F', '*S-1-5-18:(OI)(CI)F')
     if ($ReadUsers) { $grants += '*S-1-5-32-545:(OI)(CI)RX' }
-    $arguments = @($Path, '/inheritance:r') + ($grants | ForEach-Object { '/grant:r'; $_ }) + @('/T', '/C', '/Q')
-    & icacls @arguments | Out-Null
+
+    # 1) Semua isinya dulu (selagi masih bisa dibaca): hapus entri sendiri, warisi dari folder di atasnya.
+    if (Get-ChildItem $Path -Force | Select-Object -First 1) {
+        & icacls (Join-Path $Path '*') /reset /T /C /Q | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw "Gagal menerapkan izin ke isi folder $Path" }
+    }
+
+    # 2) Folder ini saja (TANPA /T): putus pewarisan, pasang izin dengan bendera pewarisan (OI)(CI);
+    #    Windows meneruskannya ke semua isi yang mewarisi. /T di sini akan menulis entri (OI)(CI) ke
+    #    setiap FILE — bendera itu tak berlaku untuk file, sehingga file berakhir tanpa izin apa pun
+    #    (Apache 403, admin pun tak bisa membaca).
+    $arguments = @($Path, '/inheritance:r') + ($grants | ForEach-Object { '/grant:r'; $_ })
+    if (-not $ReadUsers) {
+        # Users / Authenticated Users / Everyone yang tertulis eksplisit (mis. dari folder induk) dicabut.
+        $arguments += '/remove:g', '*S-1-5-32-545', '*S-1-5-11', '*S-1-1-0'
+    }
+    & icacls @($arguments + '/Q') | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "Gagal mengatur izin folder $Path" }
 }
 
