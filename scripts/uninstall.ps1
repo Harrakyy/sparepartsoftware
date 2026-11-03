@@ -1,5 +1,5 @@
 <#
-  Dijalankan saat aplikasi dicopot: hapus layanan, tugas jadwal, aturan firewall, dan ikon.
+  Dijalankan saat aplikasi dicopot (master maupun scan): hapus layanan, tugas jadwal, aturan firewall, dan ikon.
   data\ (database, PDF, lisensi, .env) dan backup\ SENGAJA dibiarkan; hapus manual bila benar-benar tak dipakai.
 #>
 param([string]$InstallDir = 'C:\VerifikasiFaktur')
