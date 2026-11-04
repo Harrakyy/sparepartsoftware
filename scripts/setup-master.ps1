@@ -1,18 +1,26 @@
 <#
   Pasang / perbarui komputer master. Dipanggil installer setelah file tersalin (hak admin).
     setup-master.ps1 [-InstallDir C:\VerifikasiFaktur] [-VcRedist <exe>] [-RestoreFrom <backup.sqlite>]
+                     [-Cable [-AdapterIndex <n>]] [-Port <n>] [-KeepAwake]
+  -Cable: port LAN diberi alamat tetap 192.168.77.1 untuk komputer scan (lewat switch).
   Aman dijalankan ulang: .env (APP_KEY, kode pemasangan), database, PDF, dan lisensi tetap.
   Exit 0 = sukses; selain itu lihat data\install.log.
 #>
 param(
     [string]$InstallDir = 'C:\VerifikasiFaktur',
     [string]$VcRedist,
-    [string]$RestoreFrom
+    [string]$RestoreFrom,
+    [switch]$Cable,
+    [int]$AdapterIndex = 0,
+    [int]$Port = 0,
+    [switch]$KeepAwake
 )
 
 $ErrorActionPreference = 'Stop'
 Import-Module (Join-Path $PSScriptRoot 'Common.psm1') -Force
 Import-Module (Join-Path $PSScriptRoot 'Master.psm1') -Force
+Import-Module (Join-Path $PSScriptRoot 'Cable.psm1') -Force
+Import-Module (Join-Path $PSScriptRoot 'Apply.psm1') -Force
 
 $app = Join-Path $InstallDir 'app'
 $phpDir = Join-Path $InstallDir 'php'
@@ -71,10 +79,10 @@ try {
     }
 
     $previous = if (Test-Path $installJson) { Get-Content $installJson -Raw | ConvertFrom-Json } else { $null }
-    $port = Get-AppPort -Previous $(if ($previous) { [int]$previous.port } else { 0 })
+    $port = if ($Port -gt 0) { $Port } else { Get-AppPort -Previous $(if ($previous) { [int]$previous.port } else { 0 }) }
     $suffix = if ($port -eq 80) { '' } else { ":$port" }
     $net = Get-LanAddress
-    $lanUrl = "http://$($net.Ip)$suffix"
+    $lanUrl = if ($Cable) { "http://$(Get-CableAddress -Role master)$suffix" } else { "http://$($net.Ip)$suffix" }
     $localUrl = "http://localhost$suffix"
     Write-SetupLog $log "Port $port, alamat $lanUrl"
 
@@ -117,6 +125,19 @@ try {
     Get-NetFirewallRule -DisplayName 'Verifikasi Faktur' -ErrorAction SilentlyContinue | Remove-NetFirewallRule
     New-NetFirewallRule -DisplayName 'Verifikasi Faktur' -Direction Inbound -Protocol TCP -LocalPort $port -Profile Private -Action Allow | Out-Null
 
+    if ($Cable) {
+        Write-SetupLog $log 'Port LAN untuk kabel (192.168.77.1) + firewall kabel'
+        $adapters = @(Get-NetAdapter -Physical -ErrorAction SilentlyContinue)
+        $adapter = if ($AdapterIndex -gt 0) { $adapters | Where-Object InterfaceIndex -eq $AdapterIndex } else { Select-CableAdapter $adapters }
+        if (-not $adapter) { throw 'Port LAN tidak ditemukan. Pasang adaptor USB-LAN lalu ulangi.' }
+        Set-CableAddress -InterfaceIndex $adapter.InterfaceIndex -Address (Get-CableAddress -Role master) -StateFile (Join-Path $data 'cable.json')
+        Set-CableFirewallRule -Port $port
+    }
+    if ($KeepAwake) {
+        Write-SetupLog $log 'Jangan sleep saat dicolok listrik'
+        Set-KeepAwake -StateFile (Join-Path $data 'power.json')
+    }
+
     Write-SetupLog $log 'Jadwal (hapus file lama, backup per jam & harian)'
     Register-RepeatingTask -Name 'Jadwal' -Execute $php -Argument "`"$(Join-Path $app 'artisan')`" schedule:run" `
         -WorkingDirectory $app -Every (New-TimeSpan -Minutes 1)
@@ -126,14 +147,17 @@ try {
     New-DesktopShortcut -Name 'Verifikasi Faktur' -Target (Get-EdgePath) -Arguments "--app=$localUrl"
     New-DesktopShortcut -Name 'Reset superadmin' -Target "$env:SystemRoot\System32\cmd.exe" `
         -Arguments "/k `"`"$php`" `"$(Join-Path $app 'artisan')`" app:superadmin --reset`"" -WorkingDirectory $app -RunAsAdmin
+    New-DesktopShortcut -Name 'Info pemasangan' -Target "$env:SystemRoot
+otepad.exe" -Arguments "`"$(Join-Path $InstallDir 'INFO-PEMASANGAN.txt')`""
     Set-RestrictedAcl -Path $InstallDir -ReadUsers
     Set-RestrictedAcl -Path $data
     Set-RestrictedAcl -Path $backup
 
-    $info = Get-InstallInfo -Url $lanUrl -PairingCode $pairingCode -NetworkCategory $net.Category -Dhcp $net.Dhcp
+    # Mode kabel: komputer scan memakai alamat tetap lewat aturan firewall kabel, jadi status WiFi/DHCP tak relevan.
+    $info = if ($Cable) { Get-InstallInfo -Url $lanUrl -PairingCode $pairingCode } else { Get-InstallInfo -Url $lanUrl -PairingCode $pairingCode -NetworkCategory $net.Category -Dhcp $net.Dhcp }
     Write-Utf8NoBom (Join-Path $InstallDir 'INFO-PEMASANGAN.txt') $info
     $build = Get-Content (Join-Path $InstallDir 'build.json') -Raw -ErrorAction SilentlyContinue | ConvertFrom-Json
-    $state = [ordered]@{ port = $port; url = $lanUrl; localUrl = $localUrl; version = $(if ($build) { $build.app } else { '' }) }
+    $state = [ordered]@{ port = $port; cable = [bool]$Cable; url = $lanUrl; localUrl = $localUrl; version = $(if ($build) { $build.app } else { '' }) }
     Write-Utf8NoBom $installJson ($state | ConvertTo-Json)
     Write-Utf8NoBom (Join-Path $data 'local-url.txt') $localUrl  # dibaca halaman akhir installer (tautan aktivasi)
 

@@ -1,11 +1,20 @@
 <#
-  Dijalankan saat aplikasi dicopot (master maupun scan): hapus layanan, tugas jadwal, aturan firewall, dan ikon.
+  Dijalankan saat aplikasi dicopot (master maupun scan): hapus layanan, tugas jadwal, aturan firewall, dan ikon;
+  kembalikan port LAN (alamat otomatis) dan setelan daya seperti sebelum dipasang.
   data\ (database, PDF, lisensi, .env) dan backup\ SENGAJA dibiarkan; hapus manual bila benar-benar tak dipakai.
 #>
 param([string]$InstallDir = 'C:\VerifikasiFaktur')
 
 $ErrorActionPreference = 'Continue'
 Import-Module (Join-Path $PSScriptRoot 'Common.psm1') -Force
+Import-Module (Join-Path $PSScriptRoot 'Apply.psm1') -Force
+
+foreach ($state in (Join-Path $InstallDir 'data\cable.json'), (Join-Path $InstallDir 'cable.json')) {
+    Restore-CableAddress -StateFile $state
+}
+Remove-CableFirewallRule
+Restore-KeepAwake -StateFile (Join-Path $InstallDir 'data\power.json')
+Remove-DesktopShortcut 'Info pemasangan'
 
 $service = 'VerifikasiFaktur'
 if (Get-Service $service -ErrorAction SilentlyContinue) {

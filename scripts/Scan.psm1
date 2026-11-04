@@ -42,6 +42,30 @@ function Test-MasterConnection {
     return @{ ok = $false; message = "Komputer master menjawab tidak normal (status $status)." }
 }
 
+function Find-MasterUrl {
+    <#
+      Mode kabel: master di alamat tetap, port 80 atau 8080. Dicoba berulang sampai WaitSeconds (port LAN
+      yang baru diberi alamat butuh beberapa detik). Kode salah = berhenti saat itu juga.
+    #>
+    param(
+        [Parameter(Mandatory)][string]$Address, [Parameter(Mandatory)][string]$PairingCode,
+        [scriptblock]$Get = $DefaultGet, [int]$WaitSeconds = 20
+    )
+
+    $deadline = (Get-Date).AddSeconds($WaitSeconds)
+    do {
+        foreach ($url in "http://$Address", "http://${Address}:8080") {
+            $r = Test-MasterConnection -Server $url -PairingCode $PairingCode -Get $Get
+            if ($r.ok) { return @{ ok = $true; url = $url; message = $r.message } }
+            if ($r.message -eq 'Kode pemasangan salah.') { return @{ ok = $false; url = $null; message = $r.message } }
+        }
+        if ((Get-Date) -lt $deadline) { Start-Sleep -Seconds 2 }
+    } while ((Get-Date) -lt $deadline)
+
+    return @{ ok = $false; url = $null; message = ("Tidak bisa terhubung ke komputer master di $Address. Pastikan kabel LAN tercolok ke switch " +
+        '(lampu port menyala), komputer master menyala, dan aplikasinya sudah dipasang.') }
+}
+
 function Test-SqliteFile([string]$Path) {
     $header = [Text.Encoding]::ASCII.GetBytes("SQLite format 3`0")
     $bytes = [IO.File]::ReadAllBytes($Path)
@@ -95,4 +119,4 @@ function Invoke-BackupPull {
     }
 }
 
-Export-ModuleMember -Function Test-MasterConnection, Invoke-BackupPull, ConvertTo-ServerUrl
+Export-ModuleMember -Function Test-MasterConnection, Find-MasterUrl, Invoke-BackupPull, ConvertTo-ServerUrl
