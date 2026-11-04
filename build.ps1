@@ -98,6 +98,14 @@ New-Item -ItemType Directory -Force $dist | Out-Null
 Invoke-Native 'ISCC' { & $iscc /Q "/DAppVersion=$($v.AppVersion)" "/DStageDir=$stage" (Join-Path $PSScriptRoot 'installer\VerifikasiFaktur.iss') }
 
 $setup = Join-Path $dist "Verifikasi-Faktur-Setup-$($v.AppVersion).exe"
+
+Write-Step "Scan Windows Defender"
+# Installer Inno kadang dianggap trojan (false positive): ketahuan di sini, bukan di komputer pelanggan.
+$defender = Join-Path $env:ProgramFiles 'Windows Defender\MpCmdRun.exe'
+$scan = (& $defender -Scan -ScanType 3 -File $setup -DisableRemediation 2>&1 | Out-String)
+if ($LASTEXITCODE -ne 0 -or $scan -notmatch 'found no threats') {
+    throw "Windows Defender menandai $setup. Jangan dibagikan; periksa/kirim ke Microsoft. $($scan.Trim())"
+}
 $notes = @(
     "Verifikasi Faktur $($v.AppVersion) - catatan rilis",
     "Tanggal build : $(Get-Date -Format 'yyyy-MM-dd HH:mm')",
@@ -106,7 +114,8 @@ $notes = @(
     "Apache        : $($v.Apache.Version)",
     "VC++ runtime  : $($v.VcRedist.Version)",
     "Setup.exe     : $(Split-Path $setup -Leaf)",
-    "SHA-256       : $((Get-FileHash $setup -Algorithm SHA256).Hash)"
+    "SHA-256       : $((Get-FileHash $setup -Algorithm SHA256).Hash)",
+    "Defender      : bersih (MpCmdRun -ScanType 3)"
 )
 Set-Content (Join-Path $dist 'RELEASE-NOTES.txt') $notes -Encoding UTF8
 Write-Step "Selesai: $setup ($([math]::Round((Get-Item $setup).Length / 1MB)) MB)"

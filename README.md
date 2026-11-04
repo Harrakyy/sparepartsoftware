@@ -44,8 +44,27 @@ pada `vc_redist.x64.exe`).
   lisensi baru untuk komputer yang sudah terpasang.
 - Membuat lisensi untuk komputer master pelanggan:
   1. Setelah Setup, halaman `/aktivasi` di komputer master menampilkan **ID komputer**.
-  2. Di laptop Ashira (repo app): `php artisan license:buat <ID> --untuk="PT ..." --sampai=2027-12-31`.
-  3. Kirim `storage\app\license.lic` hasilnya; unggah di halaman `/aktivasi`.
+  2. Di laptop Ashira, klik dua kali **`sparepart\tools\Buat Lisensi.bat`** → isi ID + "Untuk" → file
+     `lisensi <untuk>.lic` terunduh (berlaku selamanya; riwayat di `storage\app\keys\riwayat-lisensi.csv`).
+     Cadangan lewat perintah: `php artisan license:buat <ID> --untuk="PT ..."`.
+  3. Unggah file itu di halaman `/aktivasi` → halaman **Buat akun superadmin** muncul.
+
+## Alur di lokasi (kabel LAN lewat switch)
+
+1. **Master**: colok kabel ke switch → Setup → *Komputer master* → halaman **Pemeriksaan komputer**
+   (Smart App Control, 64-bit, disk, port LAN tidak dipakai jaringan kantor, bentrok alamat) →
+   centang *kabel* & *jangan tidurkan* → Pasang → aktivasi lisensi → buat akun superadmin.
+2. **Scan 1 / Scan 2**: colok kabel ke switch → Setup → *Komputer scan* → pemeriksaan → pilih
+   **Titik scan 1/2** → ketik **kode pemasangan** (ikon *Info pemasangan* di master) → Pasang.
+3. Petugas klik **Daftar** di halaman masuk (bisa dimatikan superadmin di menu Pengguna).
+4. Uji: dua titik scan barang yang sama bersamaan; restart master → kedua titik tersambung lagi.
+
+Alamat kabel tetap: master `192.168.77.1`, titik 1 `.2`, titik 2 `.3` (tanpa gateway; WiFi tidak
+terganggu). Firewall "Verifikasi Faktur (kabel)" hanya menerima dari `192.168.77.x`, di semua profil.
+
+Uji beban sebelum rilis (butuh `stage\`): `tests\load\Jalankan-Server-Uji.ps1` lalu
+`tests\load\Uji-Beban.ps1 -BaseUrl http://127.0.0.1:8099 -Username bos -Password rahasia123`
+(lulus = hitungan tepat, tanpa galat), lalu `Jalankan-Server-Uji.ps1 -Stop`.
 
 ## Yang dipasang
 
@@ -55,22 +74,25 @@ pada `vc_redist.x64.exe`).
 |---|---|
 | `app\` | Aplikasi (diganti tiap update; `app\storage` = junction ke `data\storage`) |
 | `php\`, `apache\` | PHP 8.3 & Apache 2.4 |
-| `data\` | `database.sqlite`, `storage\` (PDF faktur, lisensi, log), `.env`, `install.log` |
+| `data\` | `database.sqlite`, `storage\` (PDF faktur, lisensi, log), `.env`, `install.log`, `cable.json`, `power.json` |
 | `backup\` | Backup per jam / harian / manual / sebelum-pulihkan / sebelum-update |
 | `INFO-PEMASANGAN.txt` | Alamat untuk komputer scan + kode pemasangan |
 
 Layanan Windows `VerifikasiFaktur` (Apache, otomatis saat nyala, restart sendiri bila mati), aturan
-firewall "Verifikasi Faktur" (profil Private, port 80 atau 8080), tugas `\VerifikasiFaktur\Jadwal` tiap
-menit (akun SYSTEM, tetap jalan saat pakai baterai), ikon "Verifikasi Faktur" dan "Reset superadmin".
+firewall "Verifikasi Faktur" (Private) dan "Verifikasi Faktur (kabel)", tugas `\VerifikasiFaktur\Jadwal`
+tiap menit (akun SYSTEM, tetap jalan saat pakai baterai), ikon "Verifikasi Faktur", "Info pemasangan",
+dan "Reset superadmin".
 
-**Komputer scan**: ikon "Verifikasi Faktur" (Edge mode aplikasi ke alamat master), tugas
-`\VerifikasiFaktur\TarikBackup` tiap jam → `C:\VerifikasiFaktur\backup\` (24 per jam + 7 harian).
+**Komputer scan**: port LAN `192.168.77.2/.3`, ikon "Verifikasi Faktur" (Edge mode aplikasi ke master),
+tugas `\VerifikasiFaktur\TarikBackup` tiap jam → `C:\VerifikasiFaktur\backup\` (24 per jam + 7 harian).
 
-Copot (Settings → Apps): layanan, tugas, firewall, ikon dihapus; `data\` dan `backup\` **dibiarkan**.
+Copot (Settings → Apps): layanan, tugas, firewall, ikon dihapus; port LAN & setelan daya dikembalikan
+seperti semula; `data\` dan `backup\` **dibiarkan**.
 
 ## Pemasangan senyap (uji / otomatis)
 
 ```powershell
-Verifikasi-Faktur-Setup-1.0.0.exe /VERYSILENT /ROLE=master /SKIPADMIN=1
-Verifikasi-Faktur-Setup-1.0.0.exe /VERYSILENT /ROLE=scan /SERVER=192.168.1.10 /CODE=ABCD2345
+Verifikasi-Faktur-Setup-1.0.0.exe /VERYSILENT /ROLE=master /CABLE=1 /PORT=8080
+Verifikasi-Faktur-Setup-1.0.0.exe /VERYSILENT /ROLE=scan /CABLE=1 /POINT=1 /CODE=ABCD2345
+Verifikasi-Faktur-Setup-1.0.0.exe /VERYSILENT /ROLE=scan /CABLE=0 /SERVER=192.168.1.10 /CODE=ABCD2345
 ```
