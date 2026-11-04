@@ -61,3 +61,27 @@ Describe 'Invoke-BackupPull' {
         $r.message | Should Match 'bukan database'
     }
 }
+
+Describe 'Find-MasterUrl' {
+    It 'uses port 8080 when the master is not on port 80' {
+        $get = { param($Url, $Headers) if ($Url -like 'http://192.168.77.1:8080/*') { if ($Url -like '*/up') { 200 } else { 404 } } else { throw 'tidak menjawab' } }
+        $r = Find-MasterUrl -Address '192.168.77.1' -PairingCode 'ABCD2345' -Get $get -WaitSeconds 0
+        $r.ok | Should Be $true
+        $r.url | Should Be 'http://192.168.77.1:8080'
+    }
+    It 'prefers port 80' {
+        $r = Find-MasterUrl -Address '192.168.77.1' -PairingCode 'ABCD2345' -Get { param($Url, $Headers) if ($Url -like '*/up') { 200 } else { 404 } } -WaitSeconds 0
+        $r.url | Should Be 'http://192.168.77.1'
+    }
+    It 'stops at once on a wrong pairing code' {
+        $r = Find-MasterUrl -Address '192.168.77.1' -PairingCode 'SALAH' -Get { param($Url, $Headers) if ($Url -like '*/up') { 200 } else { 403 } } -WaitSeconds 5
+        $r.ok | Should Be $false
+        $r.message | Should Be 'Kode pemasangan salah.'
+    }
+    It 'reports an unreachable master by its cable address' {
+        $r = Find-MasterUrl -Address '192.168.77.1' -PairingCode 'ABCD2345' -Get { param($Url, $Headers) throw 'tidak menjawab' } -WaitSeconds 0
+        $r.ok | Should Be $false
+        $r.message | Should Match 'Tidak bisa terhubung ke komputer master di 192\.168\.77\.1'
+        $r.message | Should Match 'kabel'
+    }
+}
