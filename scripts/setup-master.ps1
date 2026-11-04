@@ -147,8 +147,7 @@ try {
     New-DesktopShortcut -Name 'Verifikasi Faktur' -Target (Get-EdgePath) -Arguments "--app=$localUrl"
     New-DesktopShortcut -Name 'Reset superadmin' -Target "$env:SystemRoot\System32\cmd.exe" `
         -Arguments "/k `"`"$php`" `"$(Join-Path $app 'artisan')`" app:superadmin --reset`"" -WorkingDirectory $app -RunAsAdmin
-    New-DesktopShortcut -Name 'Info pemasangan' -Target "$env:SystemRoot
-otepad.exe" -Arguments "`"$(Join-Path $InstallDir 'INFO-PEMASANGAN.txt')`""
+    New-DesktopShortcut -Name 'Info pemasangan' -Target (Join-Path $env:SystemRoot 'notepad.exe') -Arguments "`"$(Join-Path $InstallDir 'INFO-PEMASANGAN.txt')`""
     Set-RestrictedAcl -Path $InstallDir -ReadUsers
     Set-RestrictedAcl -Path $data
     Set-RestrictedAcl -Path $backup

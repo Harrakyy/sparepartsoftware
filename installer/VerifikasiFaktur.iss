@@ -399,6 +399,19 @@ begin
   end;
 end;
 
+{ Baris terakhir log setup: data\ hanya bisa dibuka administrator, jadi isinya ditampilkan langsung. }
+function LogTail(const Path: String): String;
+var
+  Lines: TArrayOfString;
+  I, First: Integer;
+begin
+  Result := '';
+  if not LoadStringsFromFile(Path, Lines) then exit;
+  First := GetArrayLength(Lines) - 6;
+  if First < 0 then First := 0;
+  for I := First to GetArrayLength(Lines) - 1 do Result := Result + #13#10 + Lines[I];
+end;
+
 procedure CurStepChanged(CurStep: TSetupStep);
 var
   Code: Integer;
@@ -415,11 +428,11 @@ begin
       Args := Args + ' -RestoreFrom "' + Trim(RestorePage.Values[0]) + '"';
     RunScript(InstallDir + '\scripts\setup-master.ps1', Args, Code);
     if Code <> 0 then
-      RaiseException('Menyiapkan komputer master gagal. Lihat ' + InstallDir + '\data\install.log');
+      RaiseException('Menyiapkan komputer master gagal. Kirim pesan ini ke Ashira:' + LogTail(InstallDir + '\data\install.log'));
   end else begin
     RunScript(InstallDir + '\scripts\setup-scan.ps1', ScanArgs(False), Code);
     if Code <> 0 then
-      RaiseException('Menyiapkan komputer scan gagal. Lihat ' + InstallDir + '\install.log');
+      RaiseException('Menyiapkan komputer scan gagal. Kirim pesan ini ke Ashira:' + LogTail(InstallDir + '\install.log'));
   end;
   SetupOk := True;
 end;
