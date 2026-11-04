@@ -89,6 +89,8 @@ var
   ServerPage: TInputQueryWizardPage;
   CodePage: TInputQueryWizardPage;
   SetupOk: Boolean;
+  CheckedScanDir: String;   // diisi saat cek koneksi scan (untuk pembersihan bila dibatalkan)
+  CheckedTmpDir: String;
 
 { ---------- bantuan ---------- }
 
@@ -306,8 +308,17 @@ begin
 end;
 
 procedure DeinitializeSetup;
+var
+  Code: Integer;
 begin
   if AdapterIndexes <> nil then AdapterIndexes.Free;
+  // Cek koneksi peran scan (mode kabel) sudah memasang alamat titik scan di port LAN. Bila pemasangan
+  // dibatalkan/gagal setelahnya, kembalikan port LAN ke otomatis supaya PC tidak tertinggal beralamat statis.
+  if (CheckedScanDir <> '') and (not SetupOk) and FileExists(CheckedScanDir + '\cable.json')
+    and (not FileExists(CheckedScanDir + '\scan.json')) and FileExists(CheckedTmpDir + '\Apply.psm1') then
+    Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
+      '-NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "Import-Module ''' + CheckedTmpDir + '\Apply.psm1''; ' +
+      'Restore-CableAddress -StateFile ''' + CheckedScanDir + '\cable.json''"', '', SW_HIDE, ewWaitUntilTerminated, Code);
 end;
 
 procedure RegisterPreviousData(PreviousDataKey: Integer);
@@ -346,6 +357,8 @@ var
 begin
   ExtractScripts;
   DeleteFile(ExpandConstant('{tmp}\scan-check.txt'));
+  CheckedScanDir := InstallDir;
+  CheckedTmpDir := ExpandConstant('{tmp}');
   WizardForm.NextButton.Enabled := False;
   try
     RunScript(ExpandConstant('{tmp}\setup-scan.ps1'), ScanArgs(True), Code);

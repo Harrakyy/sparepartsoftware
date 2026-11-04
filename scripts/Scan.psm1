@@ -68,8 +68,11 @@ function Find-MasterUrl {
 
 function Test-SqliteFile([string]$Path) {
     $header = [Text.Encoding]::ASCII.GetBytes("SQLite format 3`0")
-    $bytes = [IO.File]::ReadAllBytes($Path)
-    if ($bytes.Length -lt $header.Length) { return $false }
+    # Hanya 16 byte pertama: database bisa besar, PC scan 32-bit tak perlu memuat semuanya ke memori.
+    $bytes = New-Object byte[] $header.Length
+    $stream = [IO.File]::OpenRead($Path)
+    try { $read = $stream.Read($bytes, 0, $bytes.Length) } finally { $stream.Dispose() }
+    if ($read -lt $header.Length) { return $false }
     for ($i = 0; $i -lt $header.Length; $i++) { if ($bytes[$i] -ne $header[$i]) { return $false } }
     return $true
 }

@@ -155,6 +155,10 @@ try {
     Set-RestrictedAcl -Path $InstallDir -ReadUsers
     Set-RestrictedAcl -Path $data
     Set-RestrictedAcl -Path $backup
+    # APP_KEY ada di app\.env dan cache konfigurasi: hanya Administrators & SYSTEM (Apache = LocalSystem).
+    & icacls (Join-Path $app '.env') /inheritance:r /grant:r '*S-1-5-32-544:F' '*S-1-5-18:F' /Q | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw 'Gagal mengunci izin app\.env' }
+    Set-RestrictedAcl -Path (Join-Path $app 'bootstrap\cache')
 
     # Mode kabel: komputer scan memakai alamat tetap lewat aturan firewall kabel, jadi status WiFi/DHCP tak relevan.
     $info = if ($Cable) { Get-InstallInfo -Url $lanUrl -PairingCode $pairingCode } else { Get-InstallInfo -Url $lanUrl -PairingCode $pairingCode -NetworkCategory $net.Category -Dhcp $net.Dhcp }
