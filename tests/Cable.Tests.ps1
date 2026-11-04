@@ -100,3 +100,18 @@ Describe 'cable state file' {
         Read-CableState -Path (Join-Path $TestDrive 'tidak-ada.json') | Should BeNullOrEmpty
     }
 }
+
+Describe 'Get-PreflightResult without cable' {
+    It 'does not check the LAN port when the install does not use the cable' {
+        foreach ($role in 'master', 'scan') {
+            $r = Get-PreflightResult -Role $role -Cable $false -Facts (New-Facts @{ Adapter = $null; AdapterHasGateway = $true; OtherSubnetUse = $true })
+            @($r | Where-Object { $_.status -eq 'block' }).Count | Should Be 0
+            @($r | Where-Object { $_.name -in 'Port LAN', 'Port LAN bebas', 'Alamat kabel' }).Count | Should Be 0
+        }
+    }
+    It 'still blocks Smart App Control and a 32-bit master without cable' {
+        $r = Get-PreflightResult -Role master -Cable $false -Facts (New-Facts @{ SacState = 1; Is64Bit = $false })
+        Get-Status $r 'Smart App Control' | Should Be 'block'
+        Get-Status $r 'Windows' | Should Be 'block'
+    }
+}

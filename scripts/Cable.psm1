@@ -44,7 +44,8 @@ function Get-PreflightResult {
       Hasil pemeriksaan komputer sebelum pasang: status ok / warn / block per baris. Satu "block" saja
       sudah menahan pemasangan (tidak ada yang diubah). Facts dikumpulkan preflight.ps1 dari sistem.
     #>
-    param([Parameter(Mandatory)][ValidateSet('master', 'scan')][string]$Role, [Parameter(Mandatory)][hashtable]$Facts)
+    # -Cable $false: pemasangan tanpa kabel (alamat diketik / jaringan kantor) — port LAN tidak diperiksa.
+    param([Parameter(Mandatory)][ValidateSet('master', 'scan')][string]$Role, [Parameter(Mandatory)][hashtable]$Facts, [bool]$Cable = $true)
 
     $checks = @()
 
@@ -75,7 +76,9 @@ function Get-PreflightResult {
     }
 
     $adapter = $Facts.Adapter
-    if ($null -eq $adapter) {
+    if (-not $Cable) {
+        # tanpa kabel: lewati pemeriksaan port LAN & alamat kabel
+    } elseif ($null -eq $adapter) {
         $checks += New-Check 'Port LAN' 'block' 'Port LAN tidak ditemukan. Pasang adaptor USB-LAN lalu klik Periksa lagi.'
     } else {
         $checks += New-Check 'Port LAN' 'ok' "$($adapter.Name) ($($adapter.InterfaceDescription))"
@@ -89,7 +92,9 @@ function Get-PreflightResult {
         }
     }
 
-    if ($Facts.OtherSubnetUse) {
+    if (-not $Cable) {
+        # tanpa kabel: alamat 192.168.77.x tidak dipakai
+    } elseif ($Facts.OtherSubnetUse) {
         $checks += New-Check 'Alamat kabel' 'block' "Alamat $Subnet.x sudah dipakai jaringan lain di komputer ini; hubungi Ashira untuk memilih alamat lain."
     } else {
         $checks += New-Check 'Alamat kabel' 'ok' "$Subnet.x bebas"

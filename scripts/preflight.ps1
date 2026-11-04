@@ -1,6 +1,6 @@
 <#
   Pemeriksaan komputer sebelum pasang (halaman pertama installer). Tidak mengubah apa pun.
-    preflight.ps1 -Role master|scan -ResultFile <txt> [-AdapterIndex <n>]
+    preflight.ps1 -Role master|scan -ResultFile <txt> [-AdapterIndex <n>] [-NoCable]
   ResultFile: satu baris per pemeriksaan "[OK] / [!] / [X] Nama: pesan".
   <ResultFile>.adapters: "index|nama (deskripsi)" untuk pilihan port LAN bila ada lebih dari satu.
   <ResultFile>.adapter: index port LAN terpilih. Exit 0 = boleh lanjut, 2 = ada yang menahan.
@@ -9,6 +9,7 @@ param(
     [Parameter(Mandatory)][ValidateSet('master', 'scan')][string]$Role,
     [Parameter(Mandatory)][string]$ResultFile,
     [int]$AdapterIndex = 0,
+    [switch]$NoCable,
     [string]$InstallDir = 'C:\VerifikasiFaktur'
 )
 
@@ -52,7 +53,7 @@ $facts = @{
     Port80Busy = $port80Busy
 }
 
-$checks = Get-PreflightResult -Role $Role -Facts $facts
+$checks = Get-PreflightResult -Role $Role -Facts $facts -Cable (-not $NoCable)
 $mark = @{ ok = '[OK]'; warn = '[!] '; block = '[X] ' }
 $lines = $checks | ForEach-Object { '{0} {1}: {2}' -f $mark[$_.status], $_.name, $_.message }
 Write-Utf8NoBom $ResultFile ($lines -join "`r`n")

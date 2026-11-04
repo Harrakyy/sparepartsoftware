@@ -121,9 +121,13 @@ try {
     Restart-Service $service -Force
     Wait-AppUp $localUrl
 
-    Write-SetupLog $log 'Firewall (profil Private)'
+    # Mode kabel: HANYA aturan kabel (192.168.77.x). Aturan Private umum akan membuka app (termasuk
+    # /daftar) ke seluruh jaringan kantor bila WiFi/LAN kantor berstatus Private.
     Get-NetFirewallRule -DisplayName 'Verifikasi Faktur' -ErrorAction SilentlyContinue | Remove-NetFirewallRule
-    New-NetFirewallRule -DisplayName 'Verifikasi Faktur' -Direction Inbound -Protocol TCP -LocalPort $port -Profile Private -Action Allow | Out-Null
+    if (-not $Cable) {
+        Write-SetupLog $log 'Firewall (profil Private)'
+        New-NetFirewallRule -DisplayName 'Verifikasi Faktur' -Direction Inbound -Protocol TCP -LocalPort $port -Profile Private -Action Allow | Out-Null
+    }
 
     if ($Cable) {
         Write-SetupLog $log 'Port LAN untuk kabel (192.168.77.1) + firewall kabel'

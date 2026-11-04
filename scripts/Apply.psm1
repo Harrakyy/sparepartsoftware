@@ -81,11 +81,22 @@ function Remove-CableFirewallRule {
     Get-NetFirewallRule -DisplayName $CableRule -ErrorAction SilentlyContinue | Remove-NetFirewallRule
 }
 
-function Get-PowerValue([string]$Sub, [string]$Setting) {
+function ConvertFrom-PowercfgValue([string[]]$Lines) {
+    # Keluaran powercfg berbahasa sesuai Windows; dua angka 0x terakhir selalu nilai AC lalu DC.
+    $hex = @(($Lines -join "`n") | Select-String -Pattern '0x[0-9a-fA-F]+' -AllMatches | ForEach-Object { $_.Matches } | ForEach-Object { $_.Value })
+    if ($hex.Count -lt 2) { return $null }  # setelan tak ada: hanya baris GUID skema, tanpa angka 0x
+    return [Convert]::ToInt32($hex[-2], 16)
+}
+
+function Get-SchemeGuid([string[]]$Lines) {
+    $m = [regex]::Match(($Lines -join "`n"), '[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}')
+    if ($m.Success) { return $m.Value }
+    return $null
+}
+
+function Get-PowerValue([string]$Scheme, [string]$Sub, [string]$Setting) {
     # /qh: termasuk setelan tersembunyi (mis. tutup layar di sebagian laptop).
-    $line = powercfg /qh SCHEME_CURRENT $Sub $Setting 2>$null | Select-String 'Current AC Power Setting Index'
-    if (-not $line) { return $null }
-    return [Convert]::ToInt32(($line.Line.Split(':')[-1].Trim()), 16)
+    return ConvertFrom-PowercfgValue @(powercfg /qh $Scheme $Sub $Setting 2>$null)
 }
 
 $PowerSettings = @(
@@ -100,12 +111,15 @@ function Set-KeepAwake {
     param([Parameter(Mandatory)][string]$StateFile)
 
     if (-not (Test-Path $StateFile)) {
-        $old = [ordered]@{}
-        foreach ($p in $PowerSettings) { $old[$p.key] = Get-PowerValue $p.sub $p.setting }
+        $scheme = Get-SchemeGuid @(powercfg /getactivescheme)
+        if (-not $scheme) { throw 'Skema daya aktif tidak terbaca (powercfg /getactivescheme).' }
+        $old = [ordered]@{ scheme = $scheme }
+        foreach ($p in $PowerSettings) { $old[$p.key] = Get-PowerValue $scheme $p.sub $p.setting }
         [IO.File]::WriteAllText($StateFile, ($old | ConvertTo-Json), (New-Object Text.UTF8Encoding $false))
     }
-    foreach ($p in $PowerSettings) { powercfg /setacvalueindex SCHEME_CURRENT $p.sub $p.setting 0 2>$null | Out-Null }
-    powercfg /setactive SCHEME_CURRENT | Out-Null
+    $scheme = (Get-Content $StateFile -Raw | ConvertFrom-Json).scheme
+    foreach ($p in $PowerSettings) { powercfg /setacvalueindex $scheme $p.sub $p.setting 0 2>$null | Out-Null }
+    powercfg /setactive $scheme | Out-Null
 }
 
 function Restore-KeepAwake {
@@ -113,12 +127,14 @@ function Restore-KeepAwake {
 
     if (-not (Test-Path $StateFile)) { return }
     $old = Get-Content $StateFile -Raw | ConvertFrom-Json
+    # Kembalikan ke skema yang diubah saat pasang (bukan skema yang kebetulan aktif sekarang).
+    $scheme = if ($old.PSObject.Properties['scheme'] -and $old.scheme) { $old.scheme } else { 'SCHEME_CURRENT' }
     foreach ($p in $PowerSettings) {
         $value = $old.($p.key)
-        if ($null -ne $value) { powercfg /setacvalueindex SCHEME_CURRENT $p.sub $p.setting $value 2>$null | Out-Null }
+        if ($null -ne $value) { powercfg /setacvalueindex $scheme $p.sub $p.setting $value 2>$null | Out-Null }
     }
     powercfg /setactive SCHEME_CURRENT | Out-Null
     Remove-Item $StateFile -Force
 }
 
-Export-ModuleMember -Function Set-CableAddress, Restore-CableAddress, Set-CableFirewallRule, Remove-CableFirewallRule, Set-KeepAwake, Restore-KeepAwake
+Export-ModuleMember -Function Set-CableAddress, Restore-CableAddress, Set-CableFirewallRule, Remove-CableFirewallRule, Set-KeepAwake, Restore-KeepAwake, ConvertFrom-PowercfgValue, Get-SchemeGuid

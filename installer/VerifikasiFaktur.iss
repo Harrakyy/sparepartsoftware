@@ -181,6 +181,11 @@ begin
   if IsMaster then Result := 'master' else Result := 'scan';
 end;
 
+function NoCableArg: String;
+begin
+  if UseCable then Result := '' else Result := ' -NoCable';
+end;
+
 procedure RunPreflight;
 var
   Code, I, Sep: Integer;
@@ -189,8 +194,9 @@ var
 begin
   ExtractScripts;
   Keep := SelectedAdapter;
+  if WizardSilent then Keep := ParamValue('ADAPTER', Keep);
   ResultFile := ExpandConstant('{tmp}\preflight.txt');
-  RunScript(ExpandConstant('{tmp}\preflight.ps1'), '-Role ' + RoleName + ' -ResultFile "' + ResultFile + '" -AdapterIndex ' + Keep, Code);
+  RunScript(ExpandConstant('{tmp}\preflight.ps1'), '-Role ' + RoleName + ' -ResultFile "' + ResultFile + '" -AdapterIndex ' + Keep + NoCableArg, Code);
   CheckBlocked := Code <> 0;
   CheckMemo.Text := ReadText(ResultFile);
   if CheckMemo.Text = '' then begin
@@ -267,18 +273,19 @@ begin
   CheckAgain.SetBounds(CheckPage.SurfaceWidth - ScaleX(110), CheckPage.SurfaceHeight - ScaleY(38), ScaleX(110), ScaleY(26));
   CheckAgain.OnClick := @CheckAgainClick;
 
-  MasterPage := CreateInputOptionPage(CheckPage.ID, 'Pengaturan komputer master', 'Pilih yang dipakai di lokasi ini.', '', False, False);
+  // Pilihan kabel ada SEBELUM halaman pemeriksaan: pemeriksaan port LAN hanya berlaku di mode kabel.
+  MasterPage := CreateInputOptionPage(RolePage.ID, 'Pengaturan komputer master', 'Pilih yang dipakai di lokasi ini.', '', False, False);
   MasterPage.Add('Komputer scan tersambung lewat kabel LAN (port LAN diberi alamat tetap 192.168.77.1)');
   MasterPage.Add('Jangan tidurkan komputer ini saat dicolok listrik (disarankan)');
   MasterPage.Values[0] := ParamValue('CABLE', '1') <> '0';
   MasterPage.Values[1] := ParamValue('KEEPAWAKE', '1') <> '0';
 
-  RestorePage := CreateInputFilePage(MasterPage.ID, 'Pulihkan data (opsional)', 'Pakai data dari backup lama?',
+  RestorePage := CreateInputFilePage(CheckPage.ID, 'Pulihkan data (opsional)', 'Pakai data dari backup lama?',
     'Kosongkan untuk mulai dengan data kosong. Pilih file faktur-*.sqlite (dari flashdisk atau komputer scan) untuk memulihkan.');
   RestorePage.Add('File backup:', 'Database backup (*.sqlite)|*.sqlite', '.sqlite');
   RestorePage.Values[0] := ParamValue('RESTORE', '');
 
-  PointPage := CreateInputOptionPage(CheckPage.ID, 'Titik scan', 'Komputer scan yang mana?',
+  PointPage := CreateInputOptionPage(MasterPage.ID, 'Titik scan', 'Komputer scan yang mana?',
     'Tiap titik scan punya alamat kabel sendiri. Colok kabel LAN dari komputer ini ke switch sebelum Lanjut.', True, False);
   PointPage.Add('Titik scan 1 (kabel, alamat 192.168.77.2)');
   PointPage.Add('Titik scan 2 (kabel, alamat 192.168.77.3)');
@@ -287,7 +294,7 @@ begin
   else if ParamValue('POINT', '1') = '2' then PointPage.SelectedValueIndex := 1
   else PointPage.SelectedValueIndex := 0;
 
-  ServerPage := CreateInputQueryPage(PointPage.ID, 'Alamat komputer master', 'Hanya untuk pemasangan tanpa kabel',
+  ServerPage := CreateInputQueryPage(RestorePage.ID, 'Alamat komputer master', 'Hanya untuk pemasangan tanpa kabel',
     'Lihat INFO-PEMASANGAN.txt di komputer master.');
   ServerPage.Add('Alamat komputer master (mis. 192.168.1.10):', False);
   ServerPage.Values[0] := ParamValue('SERVER', GetPreviousData('Server', ''));
