@@ -13,12 +13,20 @@ function ConvertTo-ServerUrl([string]$Server) {
 
 $DefaultGet = {
     # Status HTTP (int); galat jaringan dilempar. HEAD supaya cek kode tidak mengunduh database.
+    # Pengalihan TIDAK diikuti: master tanpa lisensi mengalihkan ke /aktivasi, yang akan terlihat seperti 200.
     param($Url, $Headers)
+    $request = [Net.HttpWebRequest]::Create($Url)
+    $request.Method = 'HEAD'
+    $request.AllowAutoRedirect = $false
+    $request.Timeout = 10000
+    foreach ($name in $Headers.Keys) { $request.Headers[$name] = $Headers[$name] }
     try {
-        (Invoke-WebRequest -UseBasicParsing -Method Head -Uri $Url -Headers $Headers -TimeoutSec 10).StatusCode
+        $response = $request.GetResponse()
     } catch [System.Net.WebException] {
-        if ($_.Exception.Response) { [int]$_.Exception.Response.StatusCode } else { throw }
+        if (-not $_.Exception.Response) { throw }
+        $response = $_.Exception.Response
     }
+    try { [int]$response.StatusCode } finally { $response.Close() }
 }
 
 $DefaultDownload = {
@@ -37,7 +45,11 @@ function Test-MasterConnection {
     } catch {
         return @{ ok = $false; message = $unreachable }
     }
-    if ($status -eq 403) { return @{ ok = $false; message = 'Kode pemasangan salah.' } }
+    if ($status -eq 403) { return @{ ok = $false; final = $true; message = 'Kode pemasangan salah.' } }
+    if ($status -ge 300 -and $status -lt 400) {
+        return @{ ok = $false; final = $true; message = 'Komputer master belum diaktivasi. Selesaikan aktivasi lisensi di master dulu, lalu jalankan lagi.' }
+    }
+    if ($status -eq 429) { return @{ ok = $false; final = $true; message = 'Terlalu banyak percobaan. Silakan tunggu 1 menit lalu jalankan lagi.' } }
     if ($status -in 200, 404) { return @{ ok = $true; message = "Terhubung ke $url." } }  # 404 = master belum punya backup
     return @{ ok = $false; message = "Komputer master menjawab tidak normal (status $status)." }
 }
@@ -45,7 +57,7 @@ function Test-MasterConnection {
 function Find-MasterUrl {
     <#
       Mode kabel: master di alamat tetap, port 80 atau 8080. Dicoba berulang sampai WaitSeconds (port LAN
-      yang baru diberi alamat butuh beberapa detik). Kode salah = berhenti saat itu juga.
+      yang baru diberi alamat butuh beberapa detik). Kode salah / belum diaktivasi = berhenti saat itu juga.
     #>
     param(
         [Parameter(Mandatory)][string]$Address, [Parameter(Mandatory)][string]$PairingCode,
@@ -57,7 +69,7 @@ function Find-MasterUrl {
         foreach ($url in "http://$Address", "http://${Address}:8080") {
             $r = Test-MasterConnection -Server $url -PairingCode $PairingCode -Get $Get
             if ($r.ok) { return @{ ok = $true; url = $url; message = $r.message } }
-            if ($r.message -eq 'Kode pemasangan salah.') { return @{ ok = $false; url = $null; message = $r.message } }
+            if ($r.ContainsKey('final')) { return @{ ok = $false; url = $null; message = $r.message } }
         }
         if ((Get-Date) -lt $deadline) { Start-Sleep -Seconds 2 }
     } while ((Get-Date) -lt $deadline)

@@ -441,7 +441,7 @@ begin
   WizardForm.StatusLabel.Caption := 'Menyiapkan aplikasi (layanan, database, jadwal, port LAN)...';
   if IsMaster then begin
     Args := '-InstallDir "' + InstallDir + '" -VcRedist "' + ExpandConstant('{tmp}\vc_redist.x64.exe') + '"';
-    if UseCable then Args := Args + ' -Cable -AdapterIndex ' + SelectedAdapter;
+    if UseCable then Args := Args + ' -Cable -AdapterIndex ' + SelectedAdapter + ' -SetupExe "' + ExpandConstant('{srcexe}') + '"';
     if MasterPage.Values[1] then Args := Args + ' -KeepAwake';
     if ParamValue('PORT', '') <> '' then Args := Args + ' -Port ' + ParamValue('PORT', '');
     if (not FileExists(InstallDir + '\data\install.json')) and (Trim(RestorePage.Values[0]) <> '') then

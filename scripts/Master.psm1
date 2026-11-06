@@ -178,4 +178,38 @@ function Write-PhpIni {
     Write-Utf8NoBom $Out (([IO.File]::ReadAllText($Template)).Replace('__PHP_DIR__', $PhpDir.TrimEnd('\')))
 }
 
-Export-ModuleMember -Function Get-AppPort, New-EnvContent, New-PairingCode, Set-StorageLink, Remove-AppDir, Test-Junction, Get-InstallInfo, Write-HttpdConf, Write-PhpIni
+function New-ScanBatContent {
+    # Isi "Pasang Titik N.bat": memasang komputer scan tanpa pertanyaan, memakai Setup.exe di folder yang sama.
+    param([Parameter(Mandatory)][string]$SetupName, [Parameter(Mandatory)][ValidateSet(1, 2)][int]$Point, [Parameter(Mandatory)][string]$PairingCode)
+
+    $setup = "%~dp0$SetupName"
+    return @(
+        '@echo off',
+        "rem Pasang komputer scan titik $Point. Berisi kode pemasangan: hapus file ini setelah selesai.",
+        "if not exist `"$setup`" (",
+        "  echo File $SetupName tidak ditemukan. Jalankan dari flashdisk yang berisi file itu.",
+        '  pause',
+        '  exit /b 1',
+        ')',
+        "echo Memasang komputer scan titik $Point. Klik Yes bila Windows bertanya.",
+        "`"$setup`" /SILENT /ROLE=scan /CABLE=1 /POINT=$Point /CODE=$PairingCode",
+        'if errorlevel 1 (',
+        '  echo Pemasangan belum berhasil. Baca pesannya, perbaiki, lalu jalankan lagi.',
+        '  pause',
+        ')',
+        ''
+    ) -join "`r`n"
+}
+
+function Write-ScanBats {
+    # Tulis "Pasang Titik 1.bat" dan "Pasang Titik 2.bat" di sebelah Setup.exe (flashdisk). Mengembalikan path-nya.
+    param([Parameter(Mandatory)][string]$Directory, [Parameter(Mandatory)][string]$SetupName, [Parameter(Mandatory)][string]$PairingCode)
+
+    foreach ($point in 1, 2) {
+        $path = Join-Path $Directory "Pasang Titik $point.bat"
+        Write-Utf8NoBom $path (New-ScanBatContent -SetupName $SetupName -Point $point -PairingCode $PairingCode)
+        $path
+    }
+}
+
+Export-ModuleMember -Function Get-AppPort, New-EnvContent, New-PairingCode, Set-StorageLink, Remove-AppDir, Test-Junction, Get-InstallInfo, Write-HttpdConf, Write-PhpIni, New-ScanBatContent, Write-ScanBats

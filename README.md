@@ -54,8 +54,10 @@ pada `vc_redist.x64.exe`).
 1. **Master**: colok kabel ke switch → Setup → *Komputer master* → halaman **Pemeriksaan komputer**
    (Smart App Control, 64-bit, disk, port LAN tidak dipakai jaringan kantor, bentrok alamat) →
    centang *kabel* & *jangan tidurkan* → Pasang → aktivasi lisensi → buat akun superadmin.
-2. **Scan 1 / Scan 2**: colok kabel ke switch → Setup → *Komputer scan* → pemeriksaan → pilih
-   **Titik scan 1/2** → ketik **kode pemasangan** (ikon *Info pemasangan* di master) → Pasang.
+2. **Scan 1 / Scan 2** (master harus sudah aktif): colok kabel ke switch → jalankan
+   **`Pasang Titik 1.bat`** / **`Pasang Titik 2.bat`** dari flashdisk → klik Yes di UAC. File `.bat` dibuat
+   otomatis di sebelah `Setup.exe` saat master dipasang dari flashdisk, dan berisi kode pemasangan (hapus
+   setelah selesai). Cara manual tetap ada: Setup → *Komputer scan* → Titik scan → kode pemasangan.
 3. Petugas klik **Daftar** di halaman masuk (bisa dimatikan superadmin di menu Pengguna).
 4. Uji: dua titik scan barang yang sama bersamaan; restart master → kedua titik tersambung lagi.
 

@@ -98,3 +98,29 @@ Describe 'config templates' {
         (Get-Content $out -Raw) | Should Match 'extension_dir = "C:\\VF\\php\\ext"'
     }
 }
+
+Describe 'New-ScanBatContent' {
+    $bat = New-ScanBatContent -SetupName 'Verifikasi-Faktur-Setup-1.0.0.exe' -Point 2 -PairingCode 'ABCD2345'
+
+    It 'installs the chosen scan point without any questions' {
+        $bat | Should Match '"%~dp0Verifikasi-Faktur-Setup-1\.0\.0\.exe" /SILENT /ROLE=scan /CABLE=1 /POINT=2 /CODE=ABCD2345'
+    }
+    It 'says so when the setup file is not next to it' {
+        $bat | Should Match 'if not exist "%~dp0Verifikasi-Faktur-Setup-1\.0\.0\.exe"'
+    }
+    It 'uses Windows line endings for cmd.exe' {
+        $bat | Should Match "`r`n"
+        $bat -replace "`r`n", '' | Should Not Match "`n"
+    }
+}
+
+Describe 'Write-ScanBats' {
+    It 'writes one file per scan point next to the setup file' {
+        $dir = Join-Path $TestDrive 'flashdisk'
+        New-Item -ItemType Directory $dir | Out-Null
+        $written = Write-ScanBats -Directory $dir -SetupName 'Setup.exe' -PairingCode 'ABCD2345'
+        @($written).Count | Should Be 2
+        Test-Path (Join-Path $dir 'Pasang Titik 1.bat') | Should Be $true
+        Get-Content (Join-Path $dir 'Pasang Titik 2.bat') -Raw | Should Match '/POINT=2'
+    }
+}

@@ -13,7 +13,8 @@ param(
     [switch]$Cable,
     [int]$AdapterIndex = 0,
     [int]$Port = 0,
-    [switch]$KeepAwake
+    [switch]$KeepAwake,
+    [string]$SetupExe
 )
 
 $ErrorActionPreference = 'Stop'
@@ -162,6 +163,16 @@ try {
 
     # Mode kabel: komputer scan memakai alamat tetap lewat aturan firewall kabel, jadi status WiFi/DHCP tak relevan.
     $info = if ($Cable) { Get-InstallInfo -Url $lanUrl -PairingCode $pairingCode } else { Get-InstallInfo -Url $lanUrl -PairingCode $pairingCode -NetworkCategory $net.Category -Dhcp $net.Dhcp }
+    if ($Cable -and $SetupExe) {
+        # Di sebelah Setup.exe (flashdisk). Gagal menulis tidak menggagalkan pemasangan master.
+        try {
+            Write-ScanBats -Directory (Split-Path $SetupExe) -SetupName (Split-Path $SetupExe -Leaf) -PairingCode $pairingCode | Out-Null
+            Write-SetupLog $log "Pasang Titik 1/2.bat dibuat di $(Split-Path $SetupExe)"
+        } catch {
+            Write-SetupLog $log "Pasang Titik 1/2.bat gagal dibuat: $($_.Exception.Message)"
+            $info += "`r`n`r`nCatatan: file Pasang Titik 1/2.bat gagal dibuat (flashdisk terkunci/penuh?). Pasang komputer scan lewat Setup.exe biasa."
+        }
+    }
     Write-Utf8NoBom (Join-Path $InstallDir 'INFO-PEMASANGAN.txt') $info
     $build = Get-Content (Join-Path $InstallDir 'build.json') -Raw -ErrorAction SilentlyContinue | ConvertFrom-Json
     $state = [ordered]@{ port = $port; cable = [bool]$Cable; url = $lanUrl; localUrl = $localUrl; version = $(if ($build) { $build.app } else { '' }) }

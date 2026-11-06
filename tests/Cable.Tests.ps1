@@ -115,3 +115,18 @@ Describe 'Get-PreflightResult without cable' {
         Get-Status $r 'Windows' | Should Be 'block'
     }
 }
+
+Describe 'Get-PreflightResult cable link' {
+    It 'stops a scan computer whose cable is not plugged in' {
+        $r = Get-PreflightResult -Role scan -Facts (New-Facts)
+        Get-Status $r 'Kabel LAN' | Should Be 'block'
+        ($r | Where-Object { $_.name -eq 'Kabel LAN' }).message | Should Match 'Kabel LAN belum tersambung'
+    }
+    It 'passes a scan computer with the cable plugged in' {
+        $r = Get-PreflightResult -Role scan -Facts (New-Facts @{ Adapter = (New-Adapter 7 'Ethernet' 'Realtek PCIe GbE' 'Up') })
+        Get-Status $r 'Kabel LAN' | Should Be 'ok'
+    }
+    It 'only warns the master, which may be wired after installing' {
+        Get-Status (Get-PreflightResult -Role master -Facts (New-Facts)) 'Kabel LAN' | Should Be 'warn'
+    }
+}

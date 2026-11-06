@@ -85,3 +85,18 @@ Describe 'Find-MasterUrl' {
         $r.message | Should Match 'kabel'
     }
 }
+
+Describe 'master readiness' {
+    $answer = { param($Status) { param($Url, $Headers) if ($Url -like '*/up') { 200 } else { $Status } }.GetNewClosure() }
+
+    It 'stops at once when the master has no active license' {
+        $r = Find-MasterUrl -Address '192.168.77.1' -PairingCode 'ABCD2345' -Get (& $answer 302) -WaitSeconds 5
+        $r.ok | Should Be $false
+        $r.message | Should Match 'Komputer master belum diaktivasi'
+    }
+    It 'asks to wait when the checks came too fast' {
+        $r = Test-MasterConnection -Server '192.168.77.1' -PairingCode 'ABCD2345' -Get (& $answer 429)
+        $r.ok | Should Be $false
+        $r.message | Should Match 'tunggu 1 menit'
+    }
+}

@@ -90,6 +90,14 @@ function Get-PreflightResult {
         } else {
             $checks += New-Check 'Port LAN bebas' 'ok' 'Tidak dipakai jaringan lain'
         }
+        if ($adapter.Status -eq 'Up') {
+            $checks += New-Check 'Kabel LAN' 'ok' 'Tersambung'
+        } elseif ($Role -eq 'scan') {
+            # Komputer scan langsung mencari master, jadi kabel wajib tersambung sebelum apa pun diubah.
+            $checks += New-Check 'Kabel LAN' 'block' 'Kabel LAN belum tersambung. Colok kabel ke switch (lampu port menyala) lalu jalankan lagi.'
+        } else {
+            $checks += New-Check 'Kabel LAN' 'warn' 'Kabel LAN belum tersambung. Boleh lanjut; colok ke switch sebelum memasang komputer scan.'
+        }
     }
 
     if (-not $Cable) {
