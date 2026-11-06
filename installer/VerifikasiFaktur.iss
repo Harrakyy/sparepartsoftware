@@ -55,16 +55,17 @@ FinishedHeadingLabel=Pemasangan selesai
 FinishedLabelNoIcons=Verifikasi Faktur sudah terpasang.
 
 [Files]
+; Skrip paling depan: pemeriksaan mengambilnya ke {tmp} di awal, dan dengan SolidCompression file di
+; belakang app/PHP/Apache baru terbaca setelah semuanya didekompres (puluhan detik, lebih lama di PC lama).
+Source: "..\scripts\*"; DestDir: "{app}\scripts"; Flags: ignoreversion
 ; Komputer master: app + PHP + Apache + template storage.
-Source: "{#StageDir}\app\*"; DestDir: "{app}\app"; Flags: ignoreversion recursesubdirs createallsubdirs; Check: IsMaster
+Source: "{#StageDir}\app\*"; DestDir: "{app}\app"; Flags: ignoreversion recursesubdirs createallsubdirs solidbreak; Check: IsMaster
 Source: "{#StageDir}\php\*"; DestDir: "{app}\php"; Flags: ignoreversion recursesubdirs createallsubdirs; Check: IsMaster
 Source: "{#StageDir}\apache\*"; DestDir: "{app}\apache"; Flags: ignoreversion recursesubdirs createallsubdirs; Check: IsMaster
 Source: "{#StageDir}\storage-template\*"; DestDir: "{app}\storage-template"; Flags: ignoreversion recursesubdirs createallsubdirs; Check: IsMaster
 Source: "{#StageDir}\vc_redist.x64.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall; Check: IsMaster
 Source: "..\templates\httpd.conf"; DestDir: "{app}\templates"; Flags: ignoreversion; Check: IsMaster
 Source: "{#StageDir}\build.json"; DestDir: "{app}"; Flags: ignoreversion
-; Skrip untuk kedua peran (juga diekstrak ke {tmp} untuk pemeriksaan, cek koneksi & persiapan update).
-Source: "..\scripts\*"; DestDir: "{app}\scripts"; Flags: ignoreversion
 
 [Run]
 Filename: "{win}\notepad.exe"; Parameters: """{app}\INFO-PEMASANGAN.txt"""; Description: "Buka info pemasangan (alamat dan kode pemasangan)"; Flags: postinstall skipifsilent nowait; Check: IsMaster and SetupSucceeded
@@ -377,7 +378,12 @@ function NextButtonClick(CurPageID: Integer): Boolean;
 begin
   Result := True;
   if (CurPageID = CheckPage.ID) and CheckBlocked then begin
-    SuppressibleMsgBox('Ada pemeriksaan bertanda [X]. Bereskan dulu lalu klik Periksa lagi.', mbError, MB_OK, IDOK);
+    // Lewat Pasang Titik N.bat tidak ada halaman yang terlihat: tampilkan hasil pemeriksaannya langsung.
+    Log(CheckMemo.Text);
+    if WizardSilent then
+      SuppressibleMsgBox('Pemasangan berhenti, tidak ada yang diubah.' + #13#10#13#10 + CheckMemo.Text, mbError, MB_OK, IDOK)
+    else
+      SuppressibleMsgBox('Ada pemeriksaan bertanda [X]. Bereskan dulu lalu klik Periksa lagi.', mbError, MB_OK, IDOK);
     Result := False;
   end else if (CurPageID = ServerPage.ID) and (Trim(ServerPage.Values[0]) = '') then begin
     SuppressibleMsgBox('Isi alamat komputer master.', mbError, MB_OK, IDOK);
@@ -396,20 +402,7 @@ var
   Code: Integer;
 begin
   Result := '';
-  // Mode senyap: halaman dilewati, jadi pemeriksaan & cek koneksi dijalankan di sini.
-  if WizardSilent then begin
-    AdapterBox.ItemIndex := -1;
-    RunPreflight;
-    if ParamValue('ADAPTER', '') <> '' then AdapterBox.ItemIndex := AdapterIndexes.IndexOf(ParamValue('ADAPTER', ''));
-    if CheckBlocked then begin
-      Result := 'Pemeriksaan komputer gagal: ' + CheckMemo.Text;
-      exit;
-    end;
-    if (not IsMaster) and (not CheckScanConnection) then begin
-      Result := 'Tidak bisa terhubung ke komputer master: ' + ReadText(ExpandConstant('{tmp}\scan-check.txt'));
-      exit;
-    end;
-  end;
+  // Mode senyap tetap melewati halaman (CurPageChanged, NextButtonClick), jadi pemeriksaan & cek koneksi sudah jalan.
   if IsMaster and FileExists(InstallDir + '\app\artisan') then begin
     ExtractScripts;
     RunScript(ExpandConstant('{tmp}\pre-update.ps1'), '-InstallDir "' + InstallDir + '"', Code);
